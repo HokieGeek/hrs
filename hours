@@ -19,7 +19,8 @@ if [ $# -gt 0 ]; then
     esac
 else
     awk ' \
-    BEGIN { lastDay="" }
+    BEGIN { lastDay = "" }
+
     length() > 0 && $0 ~ /\(/ {
         gsub("[(),]", "");
         secs=$4-$2
