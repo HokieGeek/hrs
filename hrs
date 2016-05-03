@@ -15,12 +15,12 @@ if [ $# -gt 0 ]; then
             ;;
         end|e|en)
             {
-            echo -n "`date +%s`"
-            if [ $# -gt 1 ]; then
-                shift
-                echo -n " $@"
-            fi
-            echo ""
+                echo -n "`date +%s`"
+                if [ $# -gt 1 ]; then
+                    shift
+                    echo -n " $@"
+                fi
+                echo ""
             } >> ${file}
             echo "Ended entry at: `date +'%F %T'`"
             ;;
@@ -29,18 +29,28 @@ if [ $# -gt 0 ]; then
             ;;
         -h|--help|*)
             {
-            echo "USAGE: $(basename $0) [-h|--help] [start|end|edit] [ENTRY COMMENT]" >&2
+                echo "USAGE: $(basename $0) [-h|--help] [start|end|edit] [ENTRY COMMENT]" >&2
 
-            cat <<-EOF
+                cat <<-EOF
 
-			Using the 'start' command when there is an ongoing entry will end that entry and start a new one
+				Executing without arguments pretty prints all log entries.
+
+				Using the 'start' command when there is an ongoing entry
+				will split that entry by ending it and starting a new one.
+
+				The 'ENTRY COMMENT' is added to the entry when the 'end'
+				command is called. The 'start' command only uses it when
+				splitting an entry. It is ignored by the 'edit' command.
 EOF
             } >&2
             ;;
     esac
 else
     awk ' \
-    BEGIN { printf("\033[33m:: Entries ::\033[0m\n") }
+    function printDailyTotal(DAY,   dailySecs) {
+        dailySecs = daily[DAY]-68400;
+        printf("   \033[33mTotal: %s\033[0m\n", strftime("%H:%M", dailySecs))
+    }
 
     NF == 1 {
         $0 = $0 strftime("%s") " \033[1;32mONGOING\033[0m"
@@ -48,20 +58,22 @@ else
 
     NF > 1 && $0 !~ /^#/ {
         # Aggregate the daily hours
-        secs=$2-$1
-        day=strftime("%Y%m%d", $1)
+        secs = $2-$1
+        day = strftime("%Y%m%d", $1)
         daily[day] += secs
+        dailyCount[day] += 1
 
         # Print a newline between the entries of a single day
-        if (prevDay == "") {
-            prevDay = day
-        } else if (prevDay != day) {
+        if (prevDay != day) {
+            if (prevDay != "" && dailyCount[prevDay] > 1) {
+                printDailyTotal(prevDay)
+            }
             printf("\n")
             prevDay = day
         }
 
         # Ok, print the entry nicely
-        secs-=68400;
+        secs -= 68400;
         printf("%s: %s", day, strftime("%H:%M", secs))
 
         # Print anything else at the end as a "label"
@@ -75,10 +87,8 @@ else
     }
 
     END {
-        printf("\n\033[33m:: Daily totals ::\033[0m\n")
-        for (day in daily) {
-            secs=daily[day]-68400;
-            printf("%s: %s\n", day, strftime("%H:%M", secs))
+        if (dailyCount[day] > 1) {
+            printDailyTotal(day)
         }
     }
     ' ${file}
