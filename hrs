@@ -1,6 +1,27 @@
 #!/bin/bash
 
-file="$HOME/.hours"
+log="$HOME/.hours"
+cfg="$HOME/.hrs.conf"
+
+if [ -f ${cfg} ]; then
+    source <(awk -F'=' '
+                $0 ~ /^#/ { next }
+                NF > 1 && $2 !~ /^[[:space:]"'"'"']*$/ {
+                    sub("^ *", "", $2)
+                    print $1 "=" $2
+                }
+                ' ${cfg})
+fi
+
+if [ ! -f "${log}" ]; then
+    if [ -z "${log}" ]; then
+        echo "ERROR: No log file defined"
+        exit 2
+    else
+        touch "${log}"
+        echo "Created new log file"
+    fi
+fi
 
 usage() {
     {
@@ -29,12 +50,12 @@ EOF
 if [ $# -gt 0 ]; then
     case $1 in
         start|s|st|sta|star)
-            if [ "`tail -1 ${file} | wc -c`" -le "12" ]; then
+            if [ -s "${log}" -a "`tail -1 ${log} | wc -c`" -le "12" ]; then
                 echo "Splitting entry..."
                 shift
                 $0 end $@
             fi
-            echo -n "`date +%s` " >> ${file}
+            echo -n "`date +%s` " >> ${log}
             echo "Started entry at: `date +'%F %T'`"
             ;;
         end|e|en)
@@ -45,20 +66,21 @@ if [ $# -gt 0 ]; then
                     echo -n " $@"
                 fi
                 echo ""
-            } >> ${file}
+            } >> ${log}
             echo "Ended entry at: `date +'%F %T'`"
             ;;
         edit|ed|edi)
-            exec vim ${file}
+            exec vim ${log}
             ;;
         raw|r|ra)
-            exec cat ${file}
+            exec cat ${log}
             ;;
         -h|--help)
             usage
             ;;
         *)
             usage "ERROR: Unrecognized command: $1"
+            exit 1
             ;;
     esac
 else
@@ -68,11 +90,13 @@ else
         printf("   \033[33mTotal: %s\033[0m\n", strftime("%H:%M", dailySecs))
     }
 
+    $0 ~ /^#/ { next }
+
     NF == 1 {
         $0 = $0 strftime("%s") " \033[1;32mONGOING\033[0m"
     }
 
-    NF > 1 && $0 !~ /^#/ {
+    NF > 1 {
         # Aggregate the daily hours
         secs = $2-$1
         day = strftime("%Y%m%d", $1)
@@ -107,5 +131,5 @@ else
             printDailyTotal(day)
         }
     }
-    ' ${file}
+    ' ${log}
 fi
