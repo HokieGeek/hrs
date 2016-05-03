@@ -4,13 +4,13 @@ file="$HOME/.hours"
 
 if [ $# -gt 0 ]; then
     case $1 in
-        start|s|st|sta|star) echo -n "`date +%Y%m%d_%H%M%S` (`date +%s`), " >> ${file} ;;
+        start|s|st|sta|star) echo -n "`date +%s` " >> ${file} ;;
         end|en)
             {
-            echo -n "`date +%Y%m%d_%H%M%S` (`date +%s`)"
+            echo -n "`date +%s`"
             if [ $# -gt 1 ]; then
                 shift
-                echo -n " # $@"
+                echo -n " $@"
             fi
             echo ""
             } >> ${file}
@@ -19,34 +19,44 @@ if [ $# -gt 0 ]; then
     esac
 else
     awk ' \
-    BEGIN { lastDay = "" }
+    BEGIN {
+        prevDay = ""
+        printf(":: Entries ::\n")
+    }
 
-    length() > 0 && $0 ~ /\(/ {
-        gsub("[(),]", "");
-        secs=$4-$2
-        sub("_.*$", "", $1);
-        day=$1
-        hours[$1] += secs
+    NF > 1 && $0 !~ /^#/ {
+        # Store for later use
+        secs=$2-$1
+        day=strftime("%Y%m%d", $1)
+        daily[day] += secs
 
-        if (lastDay == "") {
-            lastDay = day
-        } else if (lastDay != day) {
+        # Print a newline between the entries of a single day
+        if (prevDay == "") {
+            prevDay = day
+        } else if (prevDay != day) {
             printf("\n")
-            lastDay = day
+            prevDay = day
         }
 
+        # Ok, print the entry nicely
         secs-=68400;
         printf("%s: %s", day, strftime("%H:%M", secs))
-        if ($0 ~ /#/) {
-            sub("^.*# *", "")
-            printf(" [%s]", $0)
+
+        # Print anything else at the end as a "label"
+        if (NF > 2) {
+            for (n=3; n <= NF; n++) {
+                label = label " " $n
+            }
+            sub("^ ", "", label)
+            printf(" [%s]", label)
         }
         printf("\n")
     }
+
     END {
         printf("\n:: Daily totals ::\n")
-        for (day in hours) {
-            secs=hours[day]-68400;
+        for (day in daily) {
+            secs=daily[day]-68400;
             printf("%s: %s\n", day, strftime("%H:%M", secs))
         }
     }
