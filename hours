@@ -4,21 +4,49 @@ file="$HOME/.hours"
 
 if [ $# -gt 0 ]; then
     case $1 in
-        start) echo -n "`date +%Y%m%d_%H%M%S` (`date +%s`), " >> ${file} ;;
-        end) echo "`date +%Y%m%d_%H%M%S` (`date +%s`)" >> ${file} ;;
+        start|s|st|sta|star) echo -n "`date +%Y%m%d_%H%M%S` (`date +%s`), " >> ${file} ;;
+        end|en)
+            {
+            echo -n "`date +%Y%m%d_%H%M%S` (`date +%s`)"
+            if [ $# -gt 1 ]; then
+                shift
+                echo -n " # $@"
+            fi
+            echo ""
+            } >> ${file}
+            ;;
+        edit|ed|edi) exec vim ${file} ;;
     esac
 else
     awk ' \
+    BEGIN { lastDay="" }
     length() > 0 && $0 ~ /\(/ {
         gsub("[(),]", "");
         secs=$4-$2
         sub("_.*$", "", $1);
-        days[$1] += secs
+        day=$1
+        hours[$1] += secs
+
+        if (lastDay == "") {
+            lastDay = day
+        } else if (lastDay != day) {
+            printf("\n")
+            lastDay = day
+        }
+
+        secs-=68400;
+        printf("%s: %s", day, strftime("%H:%M", secs))
+        if ($0 ~ /#/) {
+            sub("^.*# *", "")
+            printf(" [%s]", $0)
+        }
+        printf("\n")
     }
     END {
-        for (day in days) {
-            secs=days[day]-68400;
-            printf("%s: %s\n", day, strftime("%T", secs))·
+        printf("\n:: Daily totals ::\n")
+        for (day in hours) {
+            secs=hours[day]-68400;
+            printf("%s: %s\n", day, strftime("%H:%M", secs))
         }
     }
     ' ${file}
