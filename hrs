@@ -1,0 +1,85 @@
+#!/bin/bash
+
+file="$HOME/.hours"
+
+if [ $# -gt 0 ]; then
+    case $1 in
+        start|s|st|sta|star)
+            if [ "`tail -1 ${file} | wc -c`" -le "12" ]; then
+                echo "Splitting entry..."
+                shift
+                $0 end $@
+            fi
+            echo -n "`date +%s` " >> ${file}
+            echo "Started entry at: `date +'%F %T'`"
+            ;;
+        end|e|en)
+            {
+            echo -n "`date +%s`"
+            if [ $# -gt 1 ]; then
+                shift
+                echo -n " $@"
+            fi
+            echo ""
+            } >> ${file}
+            echo "Ended entry at: `date +'%F %T'`"
+            ;;
+        edit|ed|edi)
+            exec vim ${file}
+            ;;
+        -h|--help|*)
+            {
+            echo "USAGE: $(basename $0) [-h|--help] [start|end|edit] [ENTRY COMMENT]" >&2
+
+            cat <<-EOF
+
+			Using the 'start' command when there is an ongoing entry will end that entry and start a new one
+EOF
+            } >&2
+            ;;
+    esac
+else
+    awk ' \
+    BEGIN { printf("\033[33m:: Entries ::\033[0m\n") }
+
+    NF == 1 {
+        $0 = $0 strftime("%s") " \033[1;32mONGOING\033[0m"
+    }
+
+    NF > 1 && $0 !~ /^#/ {
+        # Aggregate the daily hours
+        secs=$2-$1
+        day=strftime("%Y%m%d", $1)
+        daily[day] += secs
+
+        # Print a newline between the entries of a single day
+        if (prevDay == "") {
+            prevDay = day
+        } else if (prevDay != day) {
+            printf("\n")
+            prevDay = day
+        }
+
+        # Ok, print the entry nicely
+        secs-=68400;
+        printf("%s: %s", day, strftime("%H:%M", secs))
+
+        # Print anything else at the end as a "label"
+        if (NF > 2) {
+            $1 = ""
+            $2 = ""
+            sub("^ *", "")
+            printf(" [%s]", $0)
+        }
+        printf("\n")
+    }
+
+    END {
+        printf("\n\033[33m:: Daily totals ::\033[0m\n")
+        for (day in daily) {
+            secs=daily[day]-68400;
+            printf("%s: %s\n", day, strftime("%H:%M", secs))
+        }
+    }
+    ' ${file}
+fi
