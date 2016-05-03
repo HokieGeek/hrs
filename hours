@@ -1,6 +1,6 @@
 #!/bin/bash
 
-file="hours"
+file="$HOME/.hours"
 
 if [ $# -gt 0 ]; then
     case $1 in
