@@ -2,6 +2,30 @@
 
 file="$HOME/.hours"
 
+usage() {
+    {
+        if [ $# -gt 0 ]; then
+            echo $@
+        fi
+        echo "USAGE: $(basename $0) [-h|--help] [start|end|edit|raw] [ENTRY COMMENT]"
+
+        cat <<-EOF
+
+				Executing without arguments pretty prints all log entries.
+
+				The 'raw' command dumps the log's contents.
+				The 'edit' command opens the log in vim.
+
+				Using the 'start' command when there is an ongoing entry
+				will split that entry by ending it and starting a new one.
+
+				The 'ENTRY COMMENT' is added to the entry when the 'end'
+				command is called. The 'start' command only uses it when
+				splitting an entry. It's ignored by the other commands.
+EOF
+    } >&2
+}
+
 if [ $# -gt 0 ]; then
     case $1 in
         start|s|st|sta|star)
@@ -27,22 +51,14 @@ if [ $# -gt 0 ]; then
         edit|ed|edi)
             exec vim ${file}
             ;;
-        -h|--help|*)
-            {
-                echo "USAGE: $(basename $0) [-h|--help] [start|end|edit] [ENTRY COMMENT]" >&2
-
-                cat <<-EOF
-
-				Executing without arguments pretty prints all log entries.
-
-				Using the 'start' command when there is an ongoing entry
-				will split that entry by ending it and starting a new one.
-
-				The 'ENTRY COMMENT' is added to the entry when the 'end'
-				command is called. The 'start' command only uses it when
-				splitting an entry. It is ignored by the 'edit' command.
-EOF
-            } >&2
+        raw|r|ra)
+            exec cat ${file}
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            usage "ERROR: Unrecognized command: $1"
             ;;
     esac
 else
