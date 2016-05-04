@@ -1,5 +1,6 @@
 #!/bin/bash
 
+ongoingEntryExpectedBytes="12"
 log="$HOME/.hours"
 cfg="$HOME/.hrs.conf"
 
@@ -47,10 +48,21 @@ EOF
     } >&2
 }
 
+fixOngoingEntry() {
+    last=`tail -1 ${log}`
+    sed -i '$d' ${log}
+    echo -n "${last}" >> ${log}
+}
+
+getLastEntryBytes() {
+    [ ! -s "${log}" ] && echo "0"
+    echo "`tail -1 ${log} | wc -c`"
+}
+
 if [ $# -gt 0 ]; then
     case $1 in
         start|s|st|sta|star)
-            if [ -s "${log}" -a "`tail -1 ${log} | wc -c`" -le "11" ]; then
+            if [ `getLastEntryBytes` -le ${ongoingEntryExpectedBytes} ]; then
                 echo "Splitting ongoing entry..."
                 shift
                 $0 end $@ || exit 3
@@ -59,7 +71,9 @@ if [ $# -gt 0 ]; then
             echo "Started entry at: `date +'%F %T'`"
             ;;
         end|e|en)
-            if [ -s "${log}" -a "`tail -1 ${log} | wc -c`" -le "11" ]; then
+            ongoingEntryBytes=`getLastEntryBytes`
+            if [ ${ongoingEntryBytes} -le ${ongoingEntryExpectedBytes} ]; then
+                [ ${ongoingEntryBytes} -eq ${ongoingEntryExpectedBytes} ] && fixOngoingEntry
                 {
                     echo -n "`date +%s`"
                     if [ $# -gt 1 ]; then
@@ -73,9 +87,12 @@ if [ $# -gt 0 ]; then
                 exit 3
             fi
             echo "Ended entry at: `date +'%F %T'`"
+            echo -n "Ellapsed time: "
+            $0 | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
             ;;
         edit|ed|edi)
-            exec vim ${log}
+            vim ${log}
+            [ `getLastEntryBytes` -eq ${ongoingEntryExpectedBytes} ] && fixOngoingEntry
             ;;
         raw|r|ra)
             exec cat ${log}
