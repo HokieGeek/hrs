@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ongoingEntryExpectedBytes="12"
+badOngoingEntryBytes="12"
 log="$HOME/.hours"
 cfg="$HOME/.hrs.conf"
 
@@ -62,7 +62,7 @@ getLastEntryBytes() {
 if [ $# -gt 0 ]; then
     case $1 in
         start|s|st|sta|star)
-            if [ `getLastEntryBytes` -le ${ongoingEntryExpectedBytes} ]; then
+            if [ `getLastEntryBytes` -le ${badOngoingEntryBytes} ]; then
                 echo "Splitting ongoing entry..."
                 shift
                 $0 end $@ || exit 3
@@ -72,8 +72,8 @@ if [ $# -gt 0 ]; then
             ;;
         end|e|en)
             ongoingEntryBytes=`getLastEntryBytes`
-            if [ ${ongoingEntryBytes} -le ${ongoingEntryExpectedBytes} ]; then
-                [ ${ongoingEntryBytes} -eq ${ongoingEntryExpectedBytes} ] && fixOngoingEntry
+            if [ ${ongoingEntryBytes} -le ${badOngoingEntryBytes} ]; then
+                [ ${ongoingEntryBytes} -eq ${badOngoingEntryBytes} ] && fixOngoingEntry
                 {
                     echo -n "`date +%s`"
                     if [ $# -gt 1 ]; then
@@ -92,7 +92,7 @@ if [ $# -gt 0 ]; then
             ;;
         edit|ed|edi)
             vim ${log}
-            [ `getLastEntryBytes` -eq ${ongoingEntryExpectedBytes} ] && fixOngoingEntry
+            [ `getLastEntryBytes` -eq ${badOngoingEntryBytes} ] && fixOngoingEntry
             ;;
         raw|r|ra)
             exec cat ${log}
