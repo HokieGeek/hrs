@@ -84,14 +84,16 @@ if [ $# -gt 0 ]; then
             ;;
     esac
 else
-    awk ' \
+    awk '
     function printDailyTotal(DAY,   dailySecs) {
         dailySecs = daily[DAY]-68400;
         printf("   \033[33mTotal: %s\033[0m\n", strftime("%H:%M", dailySecs))
     }
 
+    # Ignore commented lines
     $0 ~ /^#/ { next }
 
+    # Fake out the current session
     NF == 1 {
         $0 = $0 strftime("%s") " \033[1;32mONGOING\033[0m"
     }
@@ -126,6 +128,7 @@ else
         printf("\n")
     }
 
+    # Catch the last grouping that needs to be totaled
     END {
         if (dailyCount[day] > 1) {
             printDailyTotal(day)
