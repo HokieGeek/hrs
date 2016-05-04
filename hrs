@@ -29,11 +29,12 @@ usage() {
         if [ $# -gt 0 ]; then
             echo $@
         fi
-        echo "USAGE: $(basename $0) [-h|--help] [start|end|edit|raw] [ENTRY COMMENT]"
+        echo "USAGE: $(basename $0) [-h|--help] [start|end|list|edit|watch|raw] [ENTRY COMMENT]"
 
         cat <<-EOF
 
-				Executing without arguments pretty prints all log entries.
+				Using the 'list' command pretty-prints all log entries.
+				If no arguments are given, this is the default command.
 
 				The 'raw' command dumps the log's contents.
 				The 'edit' command opens the log in vim.
@@ -90,12 +91,18 @@ if [ $# -gt 0 ]; then
             echo -n "Ellapsed time: "
             $0 | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
             ;;
+        watch|w|wa|wat|watc)
+            exec watch -t "$0 | awk '\$0 ~ /ONGOING/ { print \$2 }'"
+            ;;
         edit|ed|edi)
             vim ${log}
             [ `getLastEntryBytes` -eq ${badOngoingEntryBytes} ] && fixOngoingEntry
             ;;
         raw|r|ra)
             exec cat ${log}
+            ;;
+        list|l|li|lis)
+            exec $0
             ;;
         -h|--help|help)
             usage
