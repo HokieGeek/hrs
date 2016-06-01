@@ -120,7 +120,7 @@ else
     }
 
     # Ignore commented lines
-    $0 ~ /^#/ { next }
+    /^#/ { next }
 
     # Fake out the current session
     NF == 1 {
