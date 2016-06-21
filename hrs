@@ -4,7 +4,7 @@ badOngoingEntryBytes="12"
 log="$HOME/.hours"
 cfg="$HOME/.hrs.conf"
 
-if [ -f ${cfg} ]; then
+if [ -f "${cfg}" ]; then
     source <(awk -F'=' '
                 $0 ~ /^#/ { next }
                 NF > 1 && $2 !~ /^[[:space:]"'"'"']*$/ {
