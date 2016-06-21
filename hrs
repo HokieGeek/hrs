@@ -6,9 +6,9 @@ cfg="$HOME/.hrs.conf"
 
 if [ -f "${cfg}" ]; then
     source <(awk -F'=' '
-                $0 ~ /^#/ { next }
+                /^#/ { next }
                 NF > 1 && $2 !~ /^[[:space:]"'"'"']*$/ {
-                    sub("^ *", "", $2)
+                    sub(/^ */, "", $2)
                     print $1 "=" $2
                 }
                 ' "${cfg}")
@@ -50,14 +50,14 @@ EOF
 }
 
 fixOngoingEntry() {
-    last=`tail -1 ${log}`
-    sed -i '$d' ${log}
-    echo -n "${last}" >> ${log}
+    last=`tail -1 "${log}"`
+    sed -i '$d' "${log}"
+    echo -n "${last}" >> "${log}"
 }
 
 getLastEntryBytes() {
     [ ! -s "${log}" ] && echo "0"
-    echo "`tail -1 ${log} | wc -c`"
+    echo "`tail -1 "${log}"| wc -c`"
 }
 
 if [ $# -gt 0 ]; then
@@ -66,9 +66,9 @@ if [ $# -gt 0 ]; then
             if [ `getLastEntryBytes` -le ${badOngoingEntryBytes} ]; then
                 echo "Splitting ongoing entry..."
                 shift
-                $0 end $@ || exit 3
+                "$0" end $@ || exit 3
             fi
-            echo -n "`date +%s` " >> ${log}
+            echo -n "`date +%s` " >> "${log}"
             echo "Started entry at: `date +'%F %T'`"
             ;;
         end|e|en)
@@ -82,27 +82,27 @@ if [ $# -gt 0 ]; then
                         echo -n " $@"
                     fi
                     echo ""
-                } >> ${log}
+                } >> "${log}"
             else
                 echo "ERROR: Did not find entry to end" >&2
                 exit 3
             fi
             echo "Ended entry at: `date +'%F %T'`"
             echo -n "Ellapsed time: "
-            $0 | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
+            "$0" | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
             ;;
         watch|w|wa|wat|watc)
             exec watch -t "$0 | awk '\$0 ~ /ONGOING/ { print \$2 }'"
             ;;
         edit|ed|edi)
-            vim ${log}
+            vim "${log}"
             [ `getLastEntryBytes` -eq ${badOngoingEntryBytes} ] && fixOngoingEntry
             ;;
         raw|r|ra)
-            exec cat ${log}
+            exec cat "${log}"
             ;;
         list|l|li|lis)
-            exec $0
+            exec "$0"
             ;;
         -h|--help|help)
             usage
@@ -163,5 +163,5 @@ else
             printDailyTotal(day)
         }
     }
-    ' ${log}
+    ' "${log}"
 fi
