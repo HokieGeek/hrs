@@ -11,7 +11,7 @@ if [ -f "${cfg}" ]; then
                     sub("^ *", "", $2)
                     print $1 "=" $2
                 }
-                ' ${cfg})
+                ' "${cfg}")
 fi
 
 if [ ! -f "${log}" ]; then
