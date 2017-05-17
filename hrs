@@ -39,6 +39,7 @@ while getopts :hl: opt; do
     case $opt in
         l) log=$OPTARG ;;
         h) usage; exit 0 ;;
+        \?) usage "ERROR: Invalid argument: -$OPTARG" ; exit 1 ;;
     esac
 done
 shift $((OPTIND-1))
@@ -56,8 +57,7 @@ fixOngoingEntry() {
 }
 
 getLastEntryBytes() {
-    [[ ! -s "${log}" ]] && echo "0"
-    echo "$(tail -1 "${log}" | wc -c)"
+    echo $(tail -1 "${log}" | wc -c)
 }
 
 if (( $# > 0 )); then
@@ -65,34 +65,29 @@ if (( $# > 0 )); then
         start|s|st|sta|star)
             if [[ -s ${log} ]] && (( $(getLastEntryBytes) <= ${badOngoingEntryBytes} )); then
                 echo "Splitting ongoing entry..."
-                shift
-                "$0" end $@ || exit 3
+                "$0" ${log:+-l ${log}} end ${@:2} || exit 3
             fi
             echo -n "$(date +%s) " >> "${log}"
             echo "Started entry at: $(date +'%F %T')"
             ;;
         end|e|en)
             ongoingEntryBytes=$(getLastEntryBytes)
-            if (( ${ongoingEntryBytes} <= ${badOngoingEntryBytes} )); then
-                (( ${ongoingEntryBytes} == ${badOngoingEntryBytes} )) && fixOngoingEntry
-                {
-                    echo -n "$(date +%s)"
-                    if (( $# > 1 )); then
-                        shift
-                        echo -n " $@"
-                    fi
-                    echo ""
-                } >> "${log}"
-            else
+            if [[ ! -s ${log} ]] || (( ${ongoingEntryBytes} > ${badOngoingEntryBytes} )); then
                 echo "ERROR: Did not find entry to end" >&2
                 exit 3
             fi
+            (( ${ongoingEntryBytes} == ${badOngoingEntryBytes} )) && fixOngoingEntry
+            {
+                echo -n "$(date +%s)"
+                (( $# > 1 )) && echo -n " ${@:2}"
+                echo ""
+            } >> "${log}"
             echo "Ended entry at: $(date +'%F %T')"
             echo -n "Ellapsed time: "
-            "$0" | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
+            "$0" ${log:+-l ${log}} | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
             ;;
         watch|w|wa|wat|watc)
-            exec watch -t "$0 | awk '/ONGOING/ { print \$2 }'"
+            exec watch -t "$0 ${log:+-l ${log}} | awk '/ONGOING/ { print \$2 }'"
             ;;
         edit|ed|edi)
             vim "${log}"
