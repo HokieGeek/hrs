@@ -106,9 +106,9 @@ if (( $# > 0 )); then
 else
     awk '
     function getDuration(secs) {
-    	return printf("%02d:%02d", (secs/3600), (secs%3600/60));
+        return sprintf("%02d:%02d", (secs/3600), (secs%3600/60));
     }
-    
+
     function printDailyTotal(DAY) {
         printf("   \033[33mTotal: %s\033[0m\n", getDuration(daily[DAY]))
     }
