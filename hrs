@@ -4,32 +4,9 @@ badOngoingEntryBytes="12"
 log="$HOME/.hours"
 cfg="$HOME/.hrs.conf"
 
-if [ -f "${cfg}" ]; then
-    source <(awk -F'=' '
-                /^#/ { next }
-                NF > 1 && $2 !~ /^[[:space:]"'"'"']*$/ {
-                    sub(/^ */, "", $2)
-                    print $1 "=" $2
-                }
-                ' "${cfg}")
-fi
-
-if [ ! -f "${log}" ]; then
-    if [ -z "${log}" ]; then
-        echo "ERROR: No log file defined"
-        exit 2
-    else
-        touch "${log}"
-        echo "Created new log file"
-    fi
-fi
-
 usage() {
-    {
-        if [ $# -gt 0 ]; then
-            echo $@
-        fi
-        echo "USAGE: $(basename $0) [-h|--help] [start|end|list|edit|watch|raw] [ENTRY COMMENT]"
+        (( $# > 0 )) && echo $@
+        echo "USAGE: ${0##*/} [-h] [-l LOG] [start|end|list|edit|watch|raw] [ENTRY COMMENT]"
 
         cat <<-EOF
 
@@ -46,38 +23,61 @@ usage() {
 				command is called. The 'start' command only uses it when
 				splitting an entry. It's ignored by the other commands.
 EOF
-    } >&2
-}
+} >&2
+
+if [[ -f "${cfg}" ]]; then
+    source <(awk -F'=' '
+                /^#/ { next }
+                NF > 1 && $2 !~ /^[[:space:]"'"'"']*$/ {
+                    sub(/^ */, "", $2)
+                    printf("%s=%s\n", $1, $2)
+                }
+                ' "${cfg}")
+fi
+
+while getopts :hl: opt; do
+    case $opt in
+        l) log=$OPTARG ;;
+        h) usage; exit 0 ;;
+    esac
+done
+shift $((OPTIND-1))
+
+: ${log:?"ERROR: No log file defined"}
+if [[ ! -f "${log}" ]]; then
+    touch "${log}"
+    echo "Created new log file"
+fi
 
 fixOngoingEntry() {
-    last=`tail -1 "${log}"`
+    local last=$(tail -1 "${log}")
     sed -i '$d' "${log}"
     echo -n "${last}" >> "${log}"
 }
 
 getLastEntryBytes() {
-    [ ! -s "${log}" ] && echo "0"
-    echo "`tail -1 "${log}"| wc -c`"
+    [[ ! -s "${log}" ]] && echo "0"
+    echo "$(tail -1 "${log}" | wc -c)"
 }
 
-if [ $# -gt 0 ]; then
+if (( $# > 0 )); then
     case $1 in
         start|s|st|sta|star)
-            if [ `getLastEntryBytes` -le ${badOngoingEntryBytes} ]; then
+            if [[ -s ${log} ]] && (( $(getLastEntryBytes) <= ${badOngoingEntryBytes} )); then
                 echo "Splitting ongoing entry..."
                 shift
                 "$0" end $@ || exit 3
             fi
-            echo -n "`date +%s` " >> "${log}"
-            echo "Started entry at: `date +'%F %T'`"
+            echo -n "$(date +%s) " >> "${log}"
+            echo "Started entry at: $(date +'%F %T')"
             ;;
         end|e|en)
-            ongoingEntryBytes=`getLastEntryBytes`
-            if [ ${ongoingEntryBytes} -le ${badOngoingEntryBytes} ]; then
-                [ ${ongoingEntryBytes} -eq ${badOngoingEntryBytes} ] && fixOngoingEntry
+            ongoingEntryBytes=$(getLastEntryBytes)
+            if (( ${ongoingEntryBytes} <= ${badOngoingEntryBytes} )); then
+                (( ${ongoingEntryBytes} == ${badOngoingEntryBytes} )) && fixOngoingEntry
                 {
-                    echo -n "`date +%s`"
-                    if [ $# -gt 1 ]; then
+                    echo -n "$(date +%s)"
+                    if (( $# > 1 )); then
                         shift
                         echo -n " $@"
                     fi
@@ -87,28 +87,24 @@ if [ $# -gt 0 ]; then
                 echo "ERROR: Did not find entry to end" >&2
                 exit 3
             fi
-            echo "Ended entry at: `date +'%F %T'`"
+            echo "Ended entry at: $(date +'%F %T')"
             echo -n "Ellapsed time: "
             "$0" | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
             ;;
         watch|w|wa|wat|watc)
-            exec watch -t "$0 | awk '\$0 ~ /ONGOING/ { print \$2 }'"
+            exec watch -t "$0 | awk '/ONGOING/ { print \$2 }'"
             ;;
         edit|ed|edi)
             vim "${log}"
-            [ `getLastEntryBytes` -eq ${badOngoingEntryBytes} ] && fixOngoingEntry
+            (( $(getLastEntryBytes) == ${badOngoingEntryBytes} )) && fixOngoingEntry
             ;;
         raw|r|ra)
             exec cat "${log}"
             ;;
         list|l|li|lis)
-            exec "$0"
+            exec "$0" ${log:+-l ${log}}
             ;;
-        -h|--help|help)
-            usage
-            ;;
-        *)
-            usage "ERROR: Unrecognized command: $1"
+        *)  usage "ERROR: Unrecognized command: $1"
             exit 1
             ;;
     esac
