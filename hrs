@@ -105,9 +105,12 @@ if (( $# > 0 )); then
     esac
 else
     awk '
-    function printDailyTotal(DAY,   dailySecs) {
-        dailySecs = daily[DAY]-68400;
-        printf("   \033[33mTotal: %s\033[0m\n", strftime("%H:%M", dailySecs))
+    function getDuration(secs) {
+    	return printf("%02d:%02d", (secs/3600), (secs%3600/60));
+    }
+    
+    function printDailyTotal(DAY) {
+        printf("   \033[33mTotal: %s\033[0m\n", getDuration(daily[DAY]))
     }
 
     # Ignore commented lines
@@ -135,8 +138,7 @@ else
         }
 
         # Ok, print the entry nicely
-        secs -= 68400;
-        printf("%s: %s", day, strftime("%H:%M", secs))
+        printf("%s: %s", day, getDuration(secs))
 
         # Print anything else at the end as a "label"
         if (NF > 2) {
