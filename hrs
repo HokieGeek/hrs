@@ -5,6 +5,7 @@ usage() {
         echo "USAGE: ${0##*/} [-h] [-l LOG] [start|end|list|watch|edit|raw] [ENTRY COMMENT]"
 
         cat <<-EOF
+	
 				-l    Overrides the default log
 
 				Using the 'list' command pretty-prints all log entries.
@@ -38,10 +39,8 @@ if [[ ! -f "${log}" ]]; then
     echo "Created new log file"
 fi
 
-isOngoingEntry() { 
-    [[ ! -s ${log} ]] && return 1
-    ## ongoing entry == 11 bytes
-    (( $(tail -1 "${log}" | wc -c) <= 11 } )) && return 0 || return 1
+isOngoingEntry() { ## ongoing entry == 11 bytes
+    return $( [[ -s ${log} ]] && (( $(tail -1 "${log}" | wc -c) <= 11 )) )
 }
 
 if (( $# > 0 )); then
@@ -66,31 +65,25 @@ if (( $# > 0 )); then
             echo -n "Ellapsed time: "
             "$0" ${log:+-l ${log}} | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
             ;;
-        list|l|li|lis)
-            exec "$0" ${log:+-l ${log}}
-            ;;
-        watch|w|wa|wat|watc)
-            exec watch -t "$0 ${log:+-l ${log}} | awk '/ONGOING/ { print \$2 }'"
-            ;;
-        edit|ed|edi)
-            exec gvim "${log}"
-            ;;
-        raw|r|ra)
-            exec cat "${log}"
-            ;;
+
+        list|l|li|lis) exec "$0" ${log:+-l ${log}} ;;
+        watch|w|wa|wat|watc) exec watch -t "$0 ${log:+-l ${log}} | awk '/ONGOING/ { print \$2 }'" ;;
+        edit|ed|edi) exec gvim "${log}" ;;
+        raw|r|ra) exec cat "${log}" ;;
+
         *)  usage "ERROR: Unrecognized command: $1"
             exit 1
             ;;
     esac
 else
     awk '
-    function getDuration(secs) { # returns hh:mm
-        return sprintf("%02d:%02d", (secs/3600), (secs%3600/60));
+    function getDurationStr(secs) { # returns hh:mm
+        return sprintf("%02d:%02d", (secs/3600), (secs%3600/60))
     }
 
-    function printDailyTotal(day) {
-        if (day != "" && dailyCount[day] > 1) {
-            printf("   \033[33mTotal: %s\033[0m\n", getDuration(daily[day]))
+    function printDailyTotal(count, duration) {
+        if (count > 1) {
+            printf("   \033[33mTotal: %s\033[0m\n", getDurationStr(duration))
         }
     }
 
@@ -103,32 +96,35 @@ else
     }
 
     NF > 1 {
-        # Aggregate the daily hours
         day = strftime("%Y%m%d", $1)
-        secs = $2-$1
-        daily[day] += secs
-        dailyCount[day] += 1
 
         # Print a newline between the entries of a single day
         if (prevDay != day) {
-            printDailyTotal(prevDay)
-            printf("\n")
+            if (prevDay) {
+                printDailyTotal(dailyCount, dailyDuration)
+                printf("\n")
+            }
             prevDay = day
+            dailyCount = daily = 0
         }
 
+        # Aggregate the daily hours
+        duration = $2-$1
+        dailyDuration += duration
+        dailyCount += 1
+
         # Print the entry and then anything else at the end as a "label"
-        printf("%s: %s", day, getDuration(secs))
+        printf("%s: %s", day, getDurationStr(duration))
         if (NF > 2) {
             $1 = $2 = ""
-            sub(/^ */, "")
-            printf(" [%s]", $0)
+            printf(" [%s]", gensub(/^[[:space:]]*/, "", "g"))
         }
         printf("\n")
     }
 
     # Catch the last grouping that needs to be totaled
     END {
-        printDailyTotal(day)
+        printDailyTotal(dailyCount, dailyDuration)
     }
     ' "${log}"
 fi
