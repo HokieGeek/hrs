@@ -90,7 +90,7 @@ if (( $# > 0 )); then
             exec watch -t "$0 ${log:+-l ${log}} | awk '/ONGOING/ { print \$2 }'"
             ;;
         edit|ed|edi)
-            vim "${log}"
+            gvim "${log}"
             (( $(getLastEntryBytes) == ${badOngoingEntryBytes} )) && fixOngoingEntry
             ;;
         raw|r|ra)
