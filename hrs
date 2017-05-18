@@ -1,6 +1,5 @@
 #!/bin/bash
 
-badOngoingEntryBytes="12"
 log="$HOME/.hours"
 cfg="$HOME/.hrs.conf"
 
@@ -50,38 +49,30 @@ if [[ ! -f "${log}" ]]; then
     echo "Created new log file"
 fi
 
-fixOngoingEntry() {
-    local last=$(tail -1 "${log}")
-    sed -i '$d' "${log}"
-    echo -n "${last}" >> "${log}"
-}
-
-getLastEntryBytes() {
-    echo $(tail -1 "${log}" | wc -c)
+isOngoingEntry() {
+    [[ ! -s ${log} ]] && return 1
+    local ongoingEntryBytes="11"
+    (( $(tail -1 "${log}" | wc -c) <= ${ongoingEntryBytes} )) && return 0 || return 1
 }
 
 if (( $# > 0 )); then
     case $1 in
         start|s|st|sta|star)
-            if [[ -s ${log} ]] && (( $(getLastEntryBytes) <= ${badOngoingEntryBytes} )); then
+            isOngoingEntry && {
                 echo "Splitting ongoing entry..."
                 "$0" ${log:+-l ${log}} end ${@:2} || exit 3
-            fi
-            echo -n "$(date +%s) " >> "${log}"
+            }
+            echo -n "$(date +%s)" >> "${log}"
             echo "Started entry at: $(date +'%F %T')"
             ;;
         end|e|en)
-            ongoingEntryBytes=$(getLastEntryBytes)
-            if [[ ! -s ${log} ]] || (( ${ongoingEntryBytes} > ${badOngoingEntryBytes} )); then
+            isOngoingEntry || {
                 echo "ERROR: Did not find entry to end" >&2
                 exit 3
-            fi
-            (( ${ongoingEntryBytes} == ${badOngoingEntryBytes} )) && fixOngoingEntry
-            {
-                echo -n "$(date +%s)"
-                (( $# > 1 )) && echo -n " ${@:2}"
-                echo ""
-            } >> "${log}"
+            }
+            [[ -z $(tail -c 1 "${log}") ]] && truncate -s -1 "${log}" # Fix for the extra newline issue
+            msg="${@:2}"
+            printf " %s%s\n" $(date +%s) "${msg:+" ${msg}"}" >> "${log}"
             echo "Ended entry at: $(date +'%F %T')"
             echo -n "Ellapsed time: "
             "$0" ${log:+-l ${log}} | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
@@ -90,8 +81,7 @@ if (( $# > 0 )); then
             exec watch -t "$0 ${log:+-l ${log}} | awk '/ONGOING/ { print \$2 }'"
             ;;
         edit|ed|edi)
-            gvim "${log}"
-            (( $(getLastEntryBytes) == ${badOngoingEntryBytes} )) && fixOngoingEntry
+            exec gvim "${log}"
             ;;
         raw|r|ra)
             exec cat "${log}"
@@ -118,7 +108,7 @@ else
 
     # Fake out the current session
     NF == 1 {
-        $0 = $0 strftime("%s") " \033[1;32mONGOING\033[0m"
+        $0 = sprintf("%d %d \033[1;32mONGOING\033[0m", $0, strftime("%s"))
     }
 
     NF > 1 {
