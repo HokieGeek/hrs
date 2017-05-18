@@ -1,13 +1,11 @@
 #!/bin/bash
 
-log="$HOME/.hours"
-cfg="$HOME/.hrs.conf"
-
 usage() {
         (( $# > 0 )) && echo $@
-        echo "USAGE: ${0##*/} [-h] [-l LOG] [start|end|list|edit|watch|raw] [ENTRY COMMENT]"
+        echo "USAGE: ${0##*/} [-h] [-l LOG] [start|end|list|watch|edit|raw] [ENTRY COMMENT]"
 
         cat <<-EOF
+				-l    Overrides the default log
 
 				Using the 'list' command pretty-prints all log entries.
 				If no arguments are given, this is the default command.
@@ -24,16 +22,7 @@ usage() {
 EOF
 } >&2
 
-if [[ -f "${cfg}" ]]; then
-    source <(awk -F'=' '
-                /^#/ { next }
-                NF > 1 && $2 !~ /^[[:space:]"'"'"']*$/ {
-                    sub(/^ */, "", $2)
-                    printf("%s=%s\n", $1, $2)
-                }
-                ' "${cfg}")
-fi
-
+log="$HOME/.hours"
 while getopts :hl: opt; do
     case $opt in
         l) log=$OPTARG ;;
@@ -49,10 +38,10 @@ if [[ ! -f "${log}" ]]; then
     echo "Created new log file"
 fi
 
-isOngoingEntry() {
+isOngoingEntry() { 
     [[ ! -s ${log} ]] && return 1
-    local ongoingEntryBytes="11"
-    (( $(tail -1 "${log}" | wc -c) <= ${ongoingEntryBytes} )) && return 0 || return 1
+    ## ongoing entry == 11 bytes
+    (( $(tail -1 "${log}" | wc -c) <= 11 } )) && return 0 || return 1
 }
 
 if (( $# > 0 )); then
@@ -100,7 +89,7 @@ else
     }
 
     function printDailyTotal(day) {
-        if (dailyCount[day] > 1) {
+        if (day != "" && dailyCount[day] > 1) {
             printf("   \033[33mTotal: %s\033[0m\n", getDuration(daily[day]))
         }
     }
@@ -114,26 +103,21 @@ else
     }
 
     NF > 1 {
-        day = strftime("%Y%m%d", $1)
-
-        # Print a newline between the entries of a single day
-        if (prevDay != day) {
-            if (prevDay != "") {
-                printDailyTotal(prevDay)
-            }
-            printf("\n")
-            prevDay = day
-        }
-
         # Aggregate the daily hours
+        day = strftime("%Y%m%d", $1)
         secs = $2-$1
         daily[day] += secs
         dailyCount[day] += 1
 
-        # Ok, print the entry nicely
-        printf("%s: %s", day, getDuration(secs))
+        # Print a newline between the entries of a single day
+        if (prevDay != day) {
+            printDailyTotal(prevDay)
+            printf("\n")
+            prevDay = day
+        }
 
-        # Print anything else at the end as a "label"
+        # Print the entry and then anything else at the end as a "label"
+        printf("%s: %s", day, getDuration(secs))
         if (NF > 2) {
             $1 = $2 = ""
             sub(/^ */, "")
