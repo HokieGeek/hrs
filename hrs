@@ -77,6 +77,9 @@ if (( $# > 0 )); then
             echo -n "Ellapsed time: "
             "$0" ${log:+-l ${log}} | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
             ;;
+        list|l|li|lis)
+            exec "$0" ${log:+-l ${log}}
+            ;;
         watch|w|wa|wat|watc)
             exec watch -t "$0 ${log:+-l ${log}} | awk '/ONGOING/ { print \$2 }'"
             ;;
@@ -86,25 +89,24 @@ if (( $# > 0 )); then
         raw|r|ra)
             exec cat "${log}"
             ;;
-        list|l|li|lis)
-            exec "$0" ${log:+-l ${log}}
-            ;;
         *)  usage "ERROR: Unrecognized command: $1"
             exit 1
             ;;
     esac
 else
     awk '
-    function getDuration(secs) {
+    function getDuration(secs) { # returns hh:mm
         return sprintf("%02d:%02d", (secs/3600), (secs%3600/60));
     }
 
-    function printDailyTotal(DAY) {
-        printf("   \033[33mTotal: %s\033[0m\n", getDuration(daily[DAY]))
+    function printDailyTotal(day) {
+        if (dailyCount[day] > 1) {
+            printf("   \033[33mTotal: %s\033[0m\n", getDuration(daily[day]))
+        }
     }
 
     # Ignore commented lines
-    /^#/ { next }
+    /^[[:space:]]*#/ { next }
 
     # Fake out the current session
     NF == 1 {
@@ -112,28 +114,28 @@ else
     }
 
     NF > 1 {
-        # Aggregate the daily hours
-        secs = $2-$1
         day = strftime("%Y%m%d", $1)
-        daily[day] += secs
-        dailyCount[day] += 1
 
         # Print a newline between the entries of a single day
         if (prevDay != day) {
-            if (prevDay != "" && dailyCount[prevDay] > 1) {
+            if (prevDay != "") {
                 printDailyTotal(prevDay)
             }
             printf("\n")
             prevDay = day
         }
 
+        # Aggregate the daily hours
+        secs = $2-$1
+        daily[day] += secs
+        dailyCount[day] += 1
+
         # Ok, print the entry nicely
         printf("%s: %s", day, getDuration(secs))
 
         # Print anything else at the end as a "label"
         if (NF > 2) {
-            $1 = ""
-            $2 = ""
+            $1 = $2 = ""
             sub(/^ */, "")
             printf(" [%s]", $0)
         }
@@ -142,9 +144,7 @@ else
 
     # Catch the last grouping that needs to be totaled
     END {
-        if (dailyCount[day] > 1) {
-            printDailyTotal(day)
-        }
+        printDailyTotal(day)
     }
     ' "${log}"
 fi
