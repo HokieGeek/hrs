@@ -1,117 +1,148 @@
-#!/bin/bash
+#!/usr/bin/awk -f
 
-usage() {
-        (( $# > 0 )) && echo $@
-        echo "USAGE: ${0##*/} [-h] [-l LOG] [start|end|list|edit] [ENTRY COMMENT]"
-        cat <<-EOF
-
-				-l    Overrides the default log
-
-				Using the 'list' command pretty-prints all log entries.
-				If no arguments are given, this is the default command.
-
-				The 'edit' command opens the log in vim.
-
-				Using the 'start' command when there is an ongoing entry
-				will split that entry by ending it and starting a new one.
-
-				The 'ENTRY COMMENT' is added to the entry when the 'end'
-				command is called or when the 'start' command is splitting
-				an entry. It's ignored by the other commands.
-EOF
-} >&2
-
-log="$HOME/.hours"
-while getopts :hl: opt; do
-    case $opt in
-        l) log=$OPTARG ;;
-        h) usage; exit 0 ;;
-        \?) usage "ERROR: Invalid argument: -$OPTARG" ; exit 1 ;;
-    esac
-done
-shift $((OPTIND-1))
-
-: ${log:?"ERROR: No log file defined"}
-if [[ ! -f "${log}" ]]; then
-    touch "${log}"
-    echo "Created new log file"
-fi
-
-isOngoingEntry() { ## ongoing entry == 11 bytes
-    return $( [[ -s ${log} ]] && (( $(tail -1 "${log}" | wc -c) <= 11 )) )
+BEGIN {
+    ## Default values
+    cmds["start"]=cmds["s"]="start"
+    cmds["end"]=cmds["e"]="end"
+    cmds["list"]=cmds["l"]="list"
+    logpath=(ENVIRON["HOME"] "/.hours")
+    
+    ## Handle any switches
+    cmdPos=1
+    while (ARGV[cmdPos] ~ /^-/) {
+        if (ARGV[cmdPos] ~ /^--?l(og)?/) {
+            logpath=ARGV[++cmdPos]
+        }
+        cmdPos++
+    }
+    
+    ## Handle the command
+    cmd=tolower(ARGV[cmdPos])
+    # TODO: if command is not 'start' and the log doesn't exist, then exit out here
+    if (cmd ~ /l(ist)?/ || !cmd) {
+        ARGV[1]=logpath
+        ARGC=2
+    } else if (cmd in cmds) {
+        # if (cmd ~ /e(nd)?/ && (getline < logpath) <= 0) {
+        #     print "ERROR: log file does not exist. Did you start an entry first?" > "/dev/stderr"
+        #     exit 1
+        # }
+        # close(logpath)
+        
+        if (ARGC-1 > cmdPos) {
+            for (msgPos=cmdPos+1; msgPos < ARGC; msgPos++) {
+                msg=sprintf("%s %s", msg, ARGV[msgPos])
+            }
+            sub(/^[[:space:]]*/, "", msg)
+        }
+        ARGC=1
+        addCommand(cmd)
+    } else {
+        print "USAGE: hrs [[-l|--log] LOG] [list | [start|end] [ENTRY COMMENT]]"
+        # TODO: more usage info
+        exit 1
+    }
 }
 
-if (( $# > 0 )); then
-    case $1 in
-        start|s)
-            isOngoingEntry && "$0" ${log:+-l ${log}} end ${@:2} || exit 3 # Split ongoing entry
-            echo -n "$(date +%s)" >> "${log}"
-            echo "Started entry at: $(date +'%F %T')"
-            ;;
-        end|e)
-            isOngoingEntry || {
-                echo "ERROR: Did not find entry to end" >&2
-                exit 3
-            }
-            [[ -z $(tail -c 1 "${log}") ]] && truncate -s -1 "${log}" # Fix for the extra newline issue
-            msg="${@:2}"
-            printf " %s%s\n" $(date +%s) "${msg:+" ${msg}"}" >> "${log}"
-            echo "Ended entry at: $(date +'%F %T')"
-            ;;
-        list|l)  exec $0 ${log:+-l ${log}} ;;
-        edit|ed) exec gvim ${log} ;;
-        *)  usage "ERROR: Unrecognized command: $1"; exit 1 ;;
-    esac
-else
-    awk '
-    function getDurationStr(secs) { # returns hh:mm
-        return sprintf("%02d:%02d", (secs/3600), (secs%3600/60))
-    }
+function addCommand(cmd) {
+    "mktemp" |& getline ARGV[ARGC]
+    close("mktemp")
+    print cmds[cmd] > ARGV[ARGC]
+    close(ARGV[ARGC])
+    tempfiles=sprintf("%s %s", tempfiles, ARGV[ARGC]) ## Remember to delete this
+    ARGC++
+}
 
-    function printDailyTotal(count, duration) {
-        if (count > 1) {
-            printf("   \033[33mTotal: %s\033[0m\n", getDurationStr(duration))
+function isOngoingEntry() {
+    # ongoingEntryCmd=sprintf("tail -1 %s | wc -c", logpath)
+    # ongoingEntryCmd |& getline bytes
+    # close(ongoingEntryCmd)
+    # return (bytes <= 11)
+    while(getline < logpath);
+    close(logpath)
+    return length() <= 11 ## ongoing entry is 10 bytes w/o newline
+}
+
+function getDurationStr(secs) { # returns hh:mm
+    return sprintf("%02d:%02d", (secs/3600), (secs%3600/60))
+}
+
+function printDailyTotal(count, duration) {
+    if (count > 1) {
+        printf("   \033[33mTotal: %s\033[0m\n", getDurationStr(duration))
+    }
+}
+
+/^start/ {
+    if (isOngoingEntry()) {
+        addCommand("end")
+        addCommand("start")
+    } else {
+        printf("%s", strftime("%s")) > logpath
+        close(logpath)
+        printf("Started entry at: %s\n", strftime("%F %T"))
+    }
+    next
+}
+
+/^end/ {
+    if (isOngoingEntry) {
+        # Fix for the extra newline issue TODO: mostly awk solution would be better
+        system(sprintf("[ -z \"`tail -c 1 %s`\" ] && truncate -s -1 %s", logpath, logpath))
+        
+        $1=sprintf(" %s", strftime("%s"))
+        if (msg) $2=msg
+        print >> logpath
+        close(logpath)
+        
+        printf("Ended entry at: %s\n", strftime("%F %T"))
+        heh=0
+    } else {
+        print "ERROR: Did not find entry to end" > "/dev/stderr"
+    }
+    next
+}
+
+# Ignore commented lines
+/^[[:space:]]*#/ { next }
+
+# Fake out the current session
+NF == 1 {
+    $0 = sprintf("%d %d \033[1;32mONGOING\033[0m", $0, strftime("%s"))
+}
+
+NF > 1 {
+    day = strftime("%Y%m%d", $1)
+
+    # Print a newline between the entries of a single day
+    if (prevDay != day) {
+        if (prevDay) {
+            printDailyTotal(dailyCount, dailyDuration)
+            printf("\n")
         }
+        prevDay = day
+        dailyCount = daily = 0
     }
 
-    # Ignore commented lines
-    /^[[:space:]]*#/ { next }
+    # Aggregate the daily hours
+    duration = $2-$1
+    dailyDuration += duration
+    dailyCount += 1
 
-    # Fake out the current session
-    NF == 1 {
-        $0 = sprintf("%d %d \033[1;32mONGOING\033[0m", $0, strftime("%s"))
+    # Print the entry and then anything else at the end as a "label"
+    printf("%s: %s", day, getDurationStr(duration))
+    if (NF > 2) {
+        $1 = $2 = ""
+        printf(" [%s]", gensub(/^[[:space:]]*/, "", "g"))
     }
+    printf("\n")
+}
 
-    NF > 1 {
-        day = strftime("%Y%m%d", $1)
-
-        # Print a newline between the entries of a single day
-        if (prevDay != day) {
-            if (prevDay) {
-                printDailyTotal(dailyCount, dailyDuration)
-                printf("\n")
-            }
-            prevDay = day
-            dailyCount = daily = 0
-        }
-
-        # Aggregate the daily hours
-        duration = $2-$1
-        dailyDuration += duration
-        dailyCount += 1
-
-        # Print the entry and then anything else at the end as a "label"
-        printf("%s: %s", day, getDurationStr(duration))
-        if (NF > 2) {
-            $1 = $2 = ""
-            printf(" [%s]", gensub(/^[[:space:]]*/, "", "g"))
-        }
-        printf("\n")
+# Catch the last grouping that needs to be totaled
+END {
+    printDailyTotal(dailyCount, dailyDuration)
+    
+    if (tempfiles) {
+        system(sprintf("rm -f %s", tempfiles))
     }
-
-    # Catch the last grouping that needs to be totaled
-    END {
-        printDailyTotal(dailyCount, dailyDuration)
-    }
-    ' "${log}"
-fi
+}
