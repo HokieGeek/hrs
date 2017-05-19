@@ -2,24 +2,22 @@
 
 usage() {
         (( $# > 0 )) && echo $@
-        echo "USAGE: ${0##*/} [-h] [-l LOG] [start|end|list|watch|edit|raw] [ENTRY COMMENT]"
-
+        echo "USAGE: ${0##*/} [-h] [-l LOG] [start|end|list|edit] [ENTRY COMMENT]"
         cat <<-EOF
-	
+
 				-l    Overrides the default log
 
 				Using the 'list' command pretty-prints all log entries.
 				If no arguments are given, this is the default command.
 
-				The 'raw' command dumps the log's contents.
 				The 'edit' command opens the log in vim.
 
 				Using the 'start' command when there is an ongoing entry
 				will split that entry by ending it and starting a new one.
 
 				The 'ENTRY COMMENT' is added to the entry when the 'end'
-				command is called. The 'start' command only uses it when
-				splitting an entry. It's ignored by the other commands.
+				command is called or when the 'start' command is splitting
+				an entry. It's ignored by the other commands.
 EOF
 } >&2
 
@@ -45,15 +43,12 @@ isOngoingEntry() { ## ongoing entry == 11 bytes
 
 if (( $# > 0 )); then
     case $1 in
-        start|s|st|sta|star)
-            isOngoingEntry && {
-                echo "Splitting ongoing entry..."
-                "$0" ${log:+-l ${log}} end ${@:2} || exit 3
-            }
+        start|s)
+            isOngoingEntry && "$0" ${log:+-l ${log}} end ${@:2} || exit 3 # Split ongoing entry
             echo -n "$(date +%s)" >> "${log}"
             echo "Started entry at: $(date +'%F %T')"
             ;;
-        end|e|en)
+        end|e)
             isOngoingEntry || {
                 echo "ERROR: Did not find entry to end" >&2
                 exit 3
@@ -62,18 +57,10 @@ if (( $# > 0 )); then
             msg="${@:2}"
             printf " %s%s\n" $(date +%s) "${msg:+" ${msg}"}" >> "${log}"
             echo "Ended entry at: $(date +'%F %T')"
-            echo -n "Ellapsed time: "
-            "$0" ${log:+-l ${log}} | awk '$1 ~ /^[0-9]{8}:/ { last=$2 } END { print last }'
             ;;
-
-        list|l|li|lis) exec "$0" ${log:+-l ${log}} ;;
-        watch|w|wa|wat|watc) exec watch -t "$0 ${log:+-l ${log}} | awk '/ONGOING/ { print \$2 }'" ;;
-        edit|ed|edi) exec gvim "${log}" ;;
-        raw|r|ra) exec cat "${log}" ;;
-
-        *)  usage "ERROR: Unrecognized command: $1"
-            exit 1
-            ;;
+        list|l)  exec $0 ${log:+-l ${log}} ;;
+        edit|ed) exec gvim ${log} ;;
+        *)  usage "ERROR: Unrecognized command: $1"; exit 1 ;;
     esac
 else
     awk '
