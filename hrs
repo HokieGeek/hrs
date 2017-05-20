@@ -2,7 +2,7 @@
 
 BEGIN {
     ## Default values
-    cmds["start"]=cmds["s"]="start"
+    cmds["start"]=cmds["s"]=cmds["st"]="start"
     cmds["end"]=cmds["e"]="end"
     cmds["list"]=cmds["l"]="list"
     logpath=(ENVIRON["HOME"] "/.hours")
@@ -10,7 +10,7 @@ BEGIN {
     ## Handle any switches
     cmdPos=1
     while (ARGV[cmdPos] ~ /^-/) {
-        if (ARGV[cmdPos] ~ /^--?l(og)?/) {
+        if (ARGV[cmdPos] ~ /^--log?/) {
             logpath=ARGV[++cmdPos]
         }
         cmdPos++
@@ -18,7 +18,6 @@ BEGIN {
 
     ## Handle the command
     cmd=tolower(ARGV[cmdPos])
-    # TODO: if command is not 'start' and the log doesn't exist, then exit out here
     if (cmd ~ /l(ist)?/ || !cmd) {
         ARGV[1]=logpath
         ARGC=2
@@ -32,18 +31,19 @@ BEGIN {
         ARGC=1
         addCommand(cmd)
     } else {
-        print "USAGE: hrs [[-l|--log] LOG] [list | [start|end] [ENTRY COMMENT]]"
-        # TODO: more usage info
+        print "USAGE: hrs [--log LOG] [list | [start|end] [ENTRY COMMENT]]"
+        print "\n       If no arguments are given, 'list' is the default command."
+        print "\n       Using the 'start' command when there is an ongoing entry"
+        print "       will end it and start a new one."
         exit 1
     }
 }
 
 function addCommand(cmd) {
-    "mktemp" |& getline ARGV[ARGC]
-    close("mktemp")
+    ARGV[ARGC]=("/tmp/hrs." PROCINFO["pid"] "." ARGC)
     print cmds[cmd] > ARGV[ARGC]
     close(ARGV[ARGC])
-    tempfiles=sprintf("%s %s", tempfiles, ARGV[ARGC]) ## Remember to delete this
+    tempfiles=sprintf("%s %s", tempfiles, ARGV[ARGC]) ## Store to delete later
     ARGC++
 }
 
@@ -68,7 +68,7 @@ function printDailyTotal(count, duration) {
         addCommand("end")
         addCommand("start")
     } else {
-        printf("%s", strftime("%s")) > logpath
+        printf("%s", strftime("%s")) >> logpath
         close(logpath)
         printf("Started entry at: %s\n", strftime("%F %T"))
     }
@@ -80,13 +80,12 @@ function printDailyTotal(count, duration) {
         # Fix for the extra newline issue TODO: mostly awk solution would be better
         system(sprintf("[ -z \"`tail -c 1 %s`\" ] && truncate -s -1 %s", logpath, logpath))
 
-        $1=sprintf(" %s", strftime("%s"))
-        if (msg) $2=msg
+        $1 = sprintf(" %s", strftime("%s"))
+        if (msg) $2 = msg
         print >> logpath
         close(logpath)
 
         printf("Ended entry at: %s\n", strftime("%F %T"))
-        heh=0
     } else {
         print "ERROR: Did not find entry to end" > "/dev/stderr"
     }
