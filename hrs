@@ -65,7 +65,7 @@ function getDurationStr(secs) { # returns hh:mm
 
 function printDailyTotal(count, duration) {
     if (count > 1) {
-        printf("   \033[33mTotal: %s\033[0m\n", getDurationStr(duration))
+        printf("   \033[33mTotal: \033[1m%s\033[0m\n", getDurationStr(duration))
     }
 }
 
@@ -114,7 +114,7 @@ NF > 1 {
             printf("\n")
         }
         prevDay = day
-        dailyCount = daily = 0
+        dailyCount = dailyDuration = 0
     }
 
     # Aggregate the daily hours
@@ -123,12 +123,9 @@ NF > 1 {
     dailyCount += 1
 
     # Print the entry and then anything else at the end as a "label"
-    printf("%s: %s", day, getDurationStr(duration))
-    if (NF > 2) {
-        $1 = $2 = ""
-        printf(" [%s]", gensub(/^[[:space:]]*/, "", "g"))
-    }
-    printf("\n")
+    $1 = day":"
+    $2 = "\033[1;37m"getDurationStr(duration)"\033[0m"
+    print
 }
 
 # Catch the last grouping that needs to be totaled
