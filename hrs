@@ -2,18 +2,19 @@
 
 BEGIN {
     ## Default values
-    cmds["start"]=cmds["s"]=cmds["st"]="start"
+    cmds["start"]=cmds["s"]="start"
     cmds["end"]=cmds["e"]="end"
     cmds["list"]=cmds["l"]="list"
     logpath=(ENVIRON["HOME"] "/.hours")
 
     ## Handle any switches
-    cmdPos=1
-    while (ARGV[cmdPos] ~ /^-/) {
+    cmdPos=0
+    while (ARGV[++cmdPos] ~ /^-/) {
         if (ARGV[cmdPos] ~ /^--log?/) {
             logpath=ARGV[++cmdPos]
+        } else {
+            usage("ERROR: Invalid option: " ARGV[cmdPos])
         }
-        cmdPos++
     }
 
     ## Handle the command
@@ -24,26 +25,31 @@ BEGIN {
     } else if (cmd in cmds) {
         if (ARGC-1 > cmdPos) {
             for (msgPos=cmdPos+1; msgPos < ARGC; msgPos++) {
-                msg=sprintf("%s %s", msg, ARGV[msgPos])
+                msg=(msg " " ARGV[msgPos])
             }
             sub(/^[[:space:]]*/, "", msg)
         }
         ARGC=1
         addCommand(cmd)
     } else {
-        print "USAGE: hrs [--log LOG] [list | [start|end] [ENTRY COMMENT]]" > "/dev/stderr"
-        print "\n       If no arguments are given, 'list' is the default command." > "/dev/stderr"
-        print "\n       Using the 'start' command when there is an ongoing entry" > "/dev/stderr"
-        print "       will end it and start a new one." > "/dev/stderr"
-        exit 1
+        usage("ERROR: Command not recognized: " cmd)
     }
+}
+
+function usage(message) {
+    if (message) print message > "/dev/stderr"
+    print "USAGE: hrs [--log LOG] [list | [start|end] [ENTRY COMMENT]]" > "/dev/stderr"
+    print "\n       If no arguments are given, 'list' is the default command." > "/dev/stderr"
+    print "\n       Using the 'start' command when there is an ongoing entry" > "/dev/stderr"
+    print "       will end it and start a new one." > "/dev/stderr"
+    exit 1
 }
 
 function addCommand(cmd) {
     ARGV[ARGC]=("/tmp/hrs." PROCINFO["pid"] "." ARGC)
     print cmds[cmd] > ARGV[ARGC]
     close(ARGV[ARGC])
-    tempfiles=sprintf("%s %s", tempfiles, ARGV[ARGC]) ## Store to delete later
+    tempfiles=(tempfiles " " ARGV[ARGC]) ## Store to delete later
     ARGC++
 }
 
@@ -77,10 +83,10 @@ function printDailyTotal(count, duration) {
 
 /^end/ {
     if (isOngoingEntry()) {
-        # Fix for the extra newline issue TODO: mostly awk solution would be better
+        # Fix for the carriage return issue TODO: mostly awk solution would be better
         system(sprintf("[ -z \"`tail -c 1 %s`\" ] && truncate -s -1 %s", logpath, logpath))
 
-        $1 = sprintf(" %s", strftime("%s"))
+        $1 = (" " strftime("%s"))
         if (msg) $2 = msg
         print >> logpath
         close(logpath)
@@ -92,12 +98,10 @@ function printDailyTotal(count, duration) {
     next
 }
 
-# Ignore commented lines
-/^[[:space:]]*#/ { next }
+/^[[:space:]]*#/ { next } # Ignore commented lines
 
-# Fake out the current session
-NF == 1 {
-    $0 = sprintf("%d %d \033[1;32mONGOING\033[0m", $0, strftime("%s"))
+NF == 1 { # Fake out the current session
+    $0 = sprintf("%d %d \033[1;32mONGOING\033[0m", $1, strftime("%s"))
 }
 
 NF > 1 {
