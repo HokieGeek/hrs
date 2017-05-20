@@ -31,10 +31,10 @@ BEGIN {
         ARGC=1
         addCommand(cmd)
     } else {
-        print "USAGE: hrs [--log LOG] [list | [start|end] [ENTRY COMMENT]]"
-        print "\n       If no arguments are given, 'list' is the default command."
-        print "\n       Using the 'start' command when there is an ongoing entry"
-        print "       will end it and start a new one."
+        print "USAGE: hrs [--log LOG] [list | [start|end] [ENTRY COMMENT]]" > "/dev/stderr"
+        print "\n       If no arguments are given, 'list' is the default command." > "/dev/stderr"
+        print "\n       Using the 'start' command when there is an ongoing entry" > "/dev/stderr"
+        print "       will end it and start a new one." > "/dev/stderr"
         exit 1
     }
 }
