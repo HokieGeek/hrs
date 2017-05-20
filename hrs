@@ -6,7 +6,7 @@ BEGIN {
     cmds["end"]=cmds["e"]="end"
     cmds["list"]=cmds["l"]="list"
     logpath=(ENVIRON["HOME"] "/.hours")
-    
+
     ## Handle any switches
     cmdPos=1
     while (ARGV[cmdPos] ~ /^-/) {
@@ -15,7 +15,7 @@ BEGIN {
         }
         cmdPos++
     }
-    
+
     ## Handle the command
     cmd=tolower(ARGV[cmdPos])
     # TODO: if command is not 'start' and the log doesn't exist, then exit out here
@@ -28,7 +28,7 @@ BEGIN {
         #     exit 1
         # }
         # close(logpath)
-        
+
         if (ARGC-1 > cmdPos) {
             for (msgPos=cmdPos+1; msgPos < ARGC; msgPos++) {
                 msg=sprintf("%s %s", msg, ARGV[msgPos])
@@ -89,12 +89,12 @@ function printDailyTotal(count, duration) {
     if (isOngoingEntry) {
         # Fix for the extra newline issue TODO: mostly awk solution would be better
         system(sprintf("[ -z \"`tail -c 1 %s`\" ] && truncate -s -1 %s", logpath, logpath))
-        
+
         $1=sprintf(" %s", strftime("%s"))
         if (msg) $2=msg
         print >> logpath
         close(logpath)
-        
+
         printf("Ended entry at: %s\n", strftime("%F %T"))
         heh=0
     } else {
@@ -141,7 +141,7 @@ NF > 1 {
 # Catch the last grouping that needs to be totaled
 END {
     printDailyTotal(dailyCount, dailyDuration)
-    
+
     if (tempfiles) {
         system(sprintf("rm -f %s", tempfiles))
     }
