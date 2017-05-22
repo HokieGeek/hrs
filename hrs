@@ -2,7 +2,7 @@
 
 BEGIN {
     ## Default values
-    cmds["start"]=cmds["s"]="start"
+    cmds["start"]=cmds["s"]=cmds["st"]="start"
     cmds["end"]=cmds["e"]="end"
     cmds["list"]=cmds["l"]="list"
     logpath=(ENVIRON["HOME"] "/.hours")
